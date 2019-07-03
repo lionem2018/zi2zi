@@ -23,11 +23,7 @@ def pad_seq(seq, batch_size):
 
 
 def bytes_to_file(bytes_img):
-    try:
-        return io.StringIO(bytes_img)
-    except:
-        print('여기서 에러 발생')
-        return 0
+    return io.BytesIO(bytes_img)
 
 
 def normalize_image(img):
