@@ -80,7 +80,10 @@ def font2img(src, dst, charset, char_size, canvas_size,
     src_font = ImageFont.truetype(src, size=char_size)
     dst_font = ImageFont.truetype(dst, size=char_size)
 
-    # 주어진 폰트에 일부 문자가 반복되지 않는지 해시를 검사하여 필터링하여 이미지로 만들 해시 셋을 구함
+    # filter 옵션이 true라면,
+    # 주어진 폰트에 일부 문자가 반복되지 않는지 해시를 검사하여 필터링하여,
+    # 이미지로 만들 글자 해시 셋을 구함
+    # (폰트 상에서 지원하지 않는 글자를 걸러내기 위함)
     filter_hashes = set()
     if filter_by_hash:
         filter_hashes = set(filter_recurring_hash(charset, dst_font, canvas_size, x_offset, y_offset))
@@ -127,8 +130,11 @@ if __name__ == "__main__":
         charset = locals().get("%s_CHARSET" % args.charset)
     else:
         charset = [c for c in open(args.charset).readline()[:-1].decode("utf-8")]
+
+    # 셔플 옵션이 true 인 경우, 글자 셋을 셔플하여 랜덤으로 글자 이미지를 생성할 수 있도록 함
     if args.shuffle:
         np.random.shuffle(charset)
+
     font2img(args.src_font, args.dst_font, charset, args.char_size,
              args.canvas_size, args.x_offset, args.y_offset,
              args.sample_count, args.sample_dir, args.label, args.filter)
