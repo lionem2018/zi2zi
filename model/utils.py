@@ -6,8 +6,7 @@ import os
 import glob
 
 import imageio
-# import scipy.misc as misc
-import imageio
+import scipy.misc as misc
 import numpy as np
 # from cStringIO import StringIO
 import io
