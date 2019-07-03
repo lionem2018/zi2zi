@@ -11,9 +11,10 @@ from PIL import ImageDraw
 from PIL import ImageFont
 import json
 import collections
-
-reload(sys)
-sys.setdefaultencoding("utf-8")
+# import importlib
+#
+# importlib.reload(sys)
+# sys.setdefaultencoding("utf-8")
 
 CN_CHARSET = None
 CN_T_CHARSET = None

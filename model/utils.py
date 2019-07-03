@@ -8,7 +8,8 @@ import glob
 import imageio
 import scipy.misc as misc
 import numpy as np
-from cStringIO import StringIO
+# from cStringIO import StringIO
+from io import StringIO
 
 
 def pad_seq(seq, batch_size):
