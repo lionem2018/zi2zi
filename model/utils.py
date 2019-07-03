@@ -6,7 +6,8 @@ import os
 import glob
 
 import imageio
-import scipy.misc as misc
+# import scipy.misc as misc
+import imageio
 import numpy as np
 # from cStringIO import StringIO
 import io
@@ -35,7 +36,8 @@ def normalize_image(img):
 
 
 def read_split_image(img):
-    mat = misc.imread(img).astype(np.float)
+    # mat = misc.imread(img).astype(np.float)
+    mat = imageio.imread(img)
     side = int(mat.shape[1] / 2)
     assert side * 2 == mat.shape[1]
     img_A = mat[:, :side]  # target
