@@ -21,9 +21,12 @@ CN_T_CHARSET = None
 JP_CHARSET = None
 KR_CHARSET = None
 
-DEFAULT_CHARSET = "./charset/cjk.json"
+SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
+DEFAULT_CHARSET = os.path.join(SCRIPT_PATH, "charset/cjk.json")
 
 
+# 글자셋 정볼르를 외부 json 파일로부터 읽어들여 가져옴
+# 명령어 옵션에서 어떤 글자를 지정했느냐에 따라 가져오는 글자셋이 다름
 def load_global_charset():
     global CN_CHARSET, JP_CHARSET, KR_CHARSET, CN_T_CHARSET
     cjk = json.load(open(DEFAULT_CHARSET))
@@ -33,6 +36,7 @@ def load_global_charset():
     CN_T_CHARSET = cjk["gb2312_t"]
 
 
+# 하나의 폰트로 해당 글자를 (canvas_size * canvas_size) 크기의 하얀 이미지에 x_offset, y_offset 크기로 그림
 def draw_single_char(ch, font, canvas_size, x_offset, y_offset):
     img = Image.new("RGB", (canvas_size, canvas_size), (255, 255, 255))
     draw = ImageDraw.Draw(img)
@@ -54,8 +58,9 @@ def draw_example(ch, src_font, dst_font, canvas_size, x_offset, y_offset, filter
 
 
 def filter_recurring_hash(charset, font, canvas_size, x_offset, y_offset):
-    """ Some characters are missing in a given font, filter them
-    by checking the recurring hashes
+    """
+    Some characters are missing in a given font, filter them by checking the recurring hashes
+    주어진 글꼴에 일부 문자가 없으면 반복되는 해시를 검사하여 해당 문자를 필터링
     """
     _charset = charset[:]
     np.random.shuffle(_charset)
@@ -70,9 +75,12 @@ def filter_recurring_hash(charset, font, canvas_size, x_offset, y_offset):
 
 def font2img(src, dst, charset, char_size, canvas_size,
              x_offset, y_offset, sample_count, sample_dir, label=0, filter_by_hash=True):
+
+    # src_font 출발 폰트와 dst_font 목적 폰트를 ImageFont 형태로 불러옴
     src_font = ImageFont.truetype(src, size=char_size)
     dst_font = ImageFont.truetype(dst, size=char_size)
 
+    # 주어진 폰트에 일부 문자가 반복되지 않는지 해시를 검사하여 필터링하여 이미지로 만들 해시 셋을 구함
     filter_hashes = set()
     if filter_by_hash:
         filter_hashes = set(filter_recurring_hash(charset, dst_font, canvas_size, x_offset, y_offset))
@@ -80,13 +88,18 @@ def font2img(src, dst, charset, char_size, canvas_size,
 
     count = 0
 
+    # 각 글자에 대한 폰트 이미지 생성
     for c in charset:
+        # 샘플의 개수만큼 생성했다면 멈춤
         if count == sample_count:
             break
+        # 
         e = draw_example(c, src_font, dst_font, canvas_size, x_offset, y_offset, filter_hashes)
         if e:
+            # 생성한 폰트 글자 이미지를 jpg 파일로 저장
             e.save(os.path.join(sample_dir, "%d_%04d.jpg" % (label, count)))
             count += 1
+            # 100개마다 진행 상황 출력
             if count % 100 == 0:
                 print("processed %d chars" % count)
 
