@@ -10,14 +10,22 @@ from .utils import pad_seq, bytes_to_file, \
     read_split_image, shift_and_resize_image, normalize_image
 
 
+# pickled된 obj 파일로부터 이미지를 제공해주는 클래스
 class PickledImageProvider(object):
     def __init__(self, obj_path):
         self.obj_path = obj_path
         self.examples = self.load_pickled_examples()
 
     def load_pickled_examples(self):
+        """
+        object 파일을 열어 pickled 이미지 로드
+        :return: object 파일로부터 읽어들인 example 이미지
+        """
+        # object 파일을 읽기전용으로 엶
         with open(self.obj_path, "rb") as of:
+            # example 이미지를 저장하기 위해 빈 리스트 생성
             examples = list()
+            # object 파일 내에 더이상 읽을 데이터가 없을 때까지 반복하여 데이터를 읽고 리스트에 추가
             while True:
                 try:
                     e = pickle.load(of)
@@ -35,6 +43,18 @@ class PickledImageProvider(object):
 def get_batch_iter(examples, batch_size, augment):
     # the transpose ops requires deterministic
     # batch size, thus comes the padding
+    """
+    batch size 만큼의 데이터를 가져오는 iterator
+    :param examples: example 이미지 데이터들
+    :param batch_size: 한 번 학습에 사용할 데이터의 크기
+    :param augment: 이미지 보강
+                    1) 이미지 확대
+                    2) 무작위로 이미지를 원래 크기로 크롭
+                    NOTE: 이미지 A와 B는 얼마만큼 이동해야하는지 동기화되어야함
+    :return: iterator
+    """
+    # examples 리스트의 총 크기가 batch_size의 배수가 되도록 리스트를 패딩
+    # 리스트 앞 쪽에서 부족한 만큼 뒤에 복사
     padded = pad_seq(examples, batch_size)
 
     def process(img):

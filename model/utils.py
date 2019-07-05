@@ -15,6 +15,12 @@ from PIL import Image
 
 def pad_seq(seq, batch_size):
     # pad the sequence to be the multiples of batch_size
+    """
+    batch_size의 배수가 될 수 있도록 시퀀스를 채움
+    :param seq: 시퀀스? 여기서는 examples 리스트
+    :param batch_size: 배치 사이즈
+    :return: 배치 사이즈의 배수의 크기를 가지도록 크기가 늘어난 시퀀스
+    """
     seq_len = len(seq)
     if seq_len % batch_size == 0:
         return seq

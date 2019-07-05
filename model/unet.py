@@ -14,7 +14,9 @@ from .dataset import TrainDataProvider, InjectDataProvider, NeverEndingLoopingPr
 from .utils import scale_back, merge, save_concat_images
 
 # Auxiliary wrapper classes
+# 보조 래퍼 클래스
 # Used to save handles(important nodes in computation graph) for later evaluation
+# 나중에 평가할 수 있도록 핸들 (계산 그래프의 중요한 노드)을 저장하는 데 사용
 LossHandle = namedtuple("LossHandle", ["d_loss", "g_loss", "const_loss", "l1_loss",
                                        "category_loss", "cheat_loss", "tv_loss"])
 InputHandle = namedtuple("InputHandle", ["real_data", "embedding_ids", "no_target_data", "no_target_ids"])
@@ -26,30 +28,48 @@ class UNet(object):
     def __init__(self, experiment_dir=None, experiment_id=0, batch_size=16, input_width=256, output_width=256,
                  generator_dim=64, discriminator_dim=64, L1_penalty=100, Lconst_penalty=15, Ltv_penalty=0.0,
                  Lcategory_penalty=1.0, embedding_num=40, embedding_dim=128, input_filters=3, output_filters=3):
+        # 샘플 생성 이미지, 체크포인트 등 저장하기 위한 디렉토리 경로
         self.experiment_dir = experiment_dir
+        # 실행 준비중인 실험의 시퀀스 ID
         self.experiment_id = experiment_id
+        # 배치 사이즈(학습이 반영되는 데이터 단위의 크기)
         self.batch_size = batch_size
+        # 입력 이미지의 너비(256)
         self.input_width = input_width
+        # 출력 이미지의 너비(256)
         self.output_width = output_width
+        # 임베딩을 위한 차원
         self.generator_dim = generator_dim
         self.discriminator_dim = discriminator_dim
+        # L1 loss를 위한 가중치
         self.L1_penalty = L1_penalty
+        # constant loss를 위한 가중치
         self.Lconst_penalty = Lconst_penalty
+        # tv loss를 위한 가중치
         self.Ltv_penalty = Ltv_penalty
+        # category loss를 위한 가중치
         self.Lcategory_penalty = Lcategory_penalty
+        # 별개의 임베딩을 위한 수(?)
         self.embedding_num = embedding_num
+        # 임베딩을 위한 차원(?)
         self.embedding_dim = embedding_dim
+        
         self.input_filters = input_filters
         self.output_filters = output_filters
+        
         # init all the directories
+        # 모든 디렉토리를 초기화
         self.sess = None
         # experiment_dir is needed for training
+        # experiment_dir가 학습에 요구됨
+        # experiment_dir에 필요한 하위 디렉토리 경로 정보 얻음
         if experiment_dir:
             self.data_dir = os.path.join(self.experiment_dir, "data")
             self.checkpoint_dir = os.path.join(self.experiment_dir, "checkpoint")
             self.sample_dir = os.path.join(self.experiment_dir, "sample")
             self.log_dir = os.path.join(self.experiment_dir, "logs")
 
+            # data 디렉토리 외에 존재하지 않는 디렉토리 생성
             if not os.path.exists(self.checkpoint_dir):
                 os.makedirs(self.checkpoint_dir)
                 print("create checkpoint directory")
@@ -61,16 +81,36 @@ class UNet(object):
                 print("create sample directory")
 
     def encoder(self, images, is_training, reuse=False):
+        """
+        generator의 encoder 부분 정의
+        :param images: 입력이 될 이미지
+        :param is_training: 학습상황인지 테스트상황인지 구별
+        :param reuse: 재사용 여부
+        :return: encoder의 결과값과 encoding 수행 과정상의 결과들
+        """
         with tf.variable_scope("generator"):
             if reuse:
                 tf.get_variable_scope().reuse_variables()
 
+            # decoder가 각 레이어의 encoding 수행 결과를 참고할 수 있도록 하는 딕셔너리 생성
+            # UNet 구조 참고
             encode_layers = dict()
 
             def encode_layer(x, output_filters, layer):
+                """
+                encoder의 각 레이어 정의
+                :param x: input 데이터
+                :param output_filters: output 크기
+                :param layer: 레이어 번호
+                :return:
+                """
+                # 데이터가 입력되기 전 lrelu 수행
                 act = lrelu(x)
+                # convolution 수행
                 conv = conv2d(act, output_filters=output_filters, scope="g_e%d_conv" % layer)
+                # convolution 수행 후 배치 정규화 수행(학습 시)
                 enc = batch_norm(conv, is_training, scope="g_e%d_bn" % layer)
+                # 결과를 encode_layers에 저장(decoder가 참고할 수 있도록)
                 encode_layers["e%d" % layer] = enc
                 return enc
 
@@ -87,35 +127,65 @@ class UNet(object):
             return e8, encode_layers
 
     def decoder(self, encoded, encoding_layers, ids, inst_norm, is_training, reuse=False):
+        """
+        generator의 decoder 부분 정의
+        :param encoded: encoding 한 결과값
+        :param encoding_layers: encoding 수행 과정 중 기록한 각 레이어의 결과값
+        :param ids:
+        :param inst_norm: 조건부 인스턴스 정규화 사용 여부
+        :param is_training: 학습상황인지 테스트상황인지 구별
+        :param reuse: 재사용 여부
+        :return:
+        """
         with tf.variable_scope("generator"):
             if reuse:
                 tf.get_variable_scope().reuse_variables()
 
+            # 각 레이어의 output 크기 설정
             s = self.output_width
             s2, s4, s8, s16, s32, s64, s128 = int(s / 2), int(s / 4), int(s / 8), int(s / 16), int(s / 32), int(
                 s / 64), int(s / 128)
 
             def decode_layer(x, output_width, output_filters, layer, enc_layer, dropout=False, do_concat=True):
+                """
+                decoder의 각 레이어 정의
+                :param x: 입력
+                :param output_width: 출력 크기(최종적으로는 이미지의 크기가 됨)
+                :param output_filters: 출력 깊이
+                :param layer: 레이어 번호
+                :param enc_layer: encoder 레이어 상의 결과값
+                :param dropout: 드롭아웃 여부
+                :param do_concat: encoder 각 레이어 결과값과의 concat 여부
+                :return: 각 레이어의 결과값
+                """
+                # deconvolution 수행
                 dec = deconv2d(tf.nn.relu(x), [self.batch_size, output_width,
                                                output_width, output_filters], scope="g_d%d_deconv" % layer)
+                # 마지막 레이어(최종 출력 레이어)가 아니라면,
                 if layer != 8:
                     # IMPORTANT: normalization for last layer
                     # Very important, otherwise GAN is unstable
                     # Trying conditional instance normalization to
                     # overcome the fact that batch normalization offers
                     # different train/test statistics
+                    # 중요: 마지막 레이어의 정규화
+                    # 매우 중요합니다. 그렇지 않으면 GAN이 불안정합니다.
+                    # 일괄 표준화가 다른 학습/테스트 통계를 제공한다는 사실을
+                    # 극복하기 위해 조건부 인스턴스 정규화 시도
+                    # 조건부 인스턴스 정규화를 사용하지 않는 경우 배치 정규화 수행
                     if inst_norm:
                         dec = conditional_instance_norm(dec, ids, self.embedding_num, scope="g_d%d_inst_norm" % layer)
                     else:
                         dec = batch_norm(dec, is_training, scope="g_d%d_bn" % layer)
+                # 드롭아웃
                 if dropout:
                     dec = tf.nn.dropout(dec, 0.5)
+                # 출력값과 encoder 각 레이어 출력값을 concat
                 if do_concat:
                     dec = tf.concat([dec, enc_layer], 3)
                 return dec
 
-            d1 = decode_layer(encoded, s128, self.generator_dim * 8, layer=1, enc_layer=encoding_layers["e7"],
-                              dropout=True)
+            d1 = decode_layer(encoded, s128, self.generator_dim * 8, layer=1, enc_layer=encoding_layers["e7"], dropout=True)
             d2 = decode_layer(d1, s64, self.generator_dim * 8, layer=2, enc_layer=encoding_layers["e6"], dropout=True)
             d3 = decode_layer(d2, s32, self.generator_dim * 8, layer=3, enc_layer=encoding_layers["e5"], dropout=True)
             d4 = decode_layer(d3, s16, self.generator_dim * 8, layer=4, enc_layer=encoding_layers["e4"])
@@ -124,18 +194,42 @@ class UNet(object):
             d7 = decode_layer(d6, s2, self.generator_dim, layer=7, enc_layer=encoding_layers["e1"])
             d8 = decode_layer(d7, s, self.output_filters, layer=8, enc_layer=None, do_concat=False)
 
+            # 생성 이미지를 그레이스케일 이미지로 만들기 위함
             output = tf.nn.tanh(d8)  # scale to (-1, 1)
             return output
 
     def generator(self, images, embeddings, embedding_ids, inst_norm, is_training, reuse=False):
+        """
+        이미지의 스타일을 변환하여 생성하는 generator (UNet 사용)
+        :param images: 변환할 이미지
+        :param embeddings: 
+        :param embedding_ids: 
+        :param inst_norm: 
+        :param is_training: 학습 상황인지 테스트 상황인지
+        :param reuse: 재사용 여부
+        :return: encoder와 decoder 출력 데이터
+        """
+        
+        # encoder 수행
         e8, enc_layers = self.encoder(images, is_training=is_training, reuse=reuse)
+
+        # category 임베딩
         local_embeddings = tf.nn.embedding_lookup(embeddings, ids=embedding_ids)
         local_embeddings = tf.reshape(local_embeddings, [self.batch_size, 1, 1, self.embedding_dim])
         embedded = tf.concat([e8, local_embeddings], 3)
+
+        # decoder 수행
         output = self.decoder(embedded, enc_layers, embedding_ids, inst_norm, is_training=is_training, reuse=reuse)
         return output, e8
 
     def discriminator(self, image, is_training, reuse=False):
+        """
+        이미지가 합성(Fake)인지 실제(Real)인지 판별하는 discriminator
+        :param image: 판별할 이미지
+        :param is_training: 학습 상황인지 테스트 상황인지
+        :param reuse: 재사용 여부
+        :return: GAN loss와 category loss
+        """
         with tf.variable_scope("discriminator"):
             if reuse:
                 tf.get_variable_scope().reuse_variables()

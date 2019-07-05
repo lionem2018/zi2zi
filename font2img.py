@@ -25,9 +25,12 @@ SCRIPT_PATH = os.path.dirname(os.path.abspath(__file__))
 DEFAULT_CHARSET = os.path.join(SCRIPT_PATH, "charset/cjk.json")
 
 
-# 글자셋 정볼르를 외부 json 파일로부터 읽어들여 가져옴
-# 명령어 옵션에서 어떤 글자를 지정했느냐에 따라 가져오는 글자셋이 다름
 def load_global_charset():
+    """
+    글자셋 정보를 외부 json 파일로부터 읽어들여 가져옴
+    명령어 옵션에서 어떤 글자를 지정했느냐에 따라 가져오는 글자셋이 다름(언어별)
+    """
+
     global CN_CHARSET, JP_CHARSET, KR_CHARSET, CN_T_CHARSET
     cjk = json.load(open(DEFAULT_CHARSET))
     CN_CHARSET = cjk["gbk"]
@@ -36,8 +39,17 @@ def load_global_charset():
     CN_T_CHARSET = cjk["gb2312_t"]
 
 
-# 하나의 폰트로 해당 글자를 (canvas_size * canvas_size) 크기의 하얀 이미지에 x_offset, y_offset 크기로 그림
 def draw_single_char(ch, font, canvas_size, x_offset, y_offset):
+    """
+    하나의 폰트로 해당 글자를 (canvas_size * canvas_size) 크기의 하얀 이미지에 x_offset, y_offset 위치부터 그림
+    :param ch: 생성할 글자
+    :param font: 생성할 글자의 폰트
+    :param canvas_size: 생성할 이미지의 크기
+    :param x_offset: 그릴 글자의 x축 상의 위치
+    :param y_offset: 그릴 글자의 y축 상의 위치
+    :return: 글자가 그려진 이미지
+    """
+
     img = Image.new("RGB", (canvas_size, canvas_size), (255, 255, 255))
     draw = ImageDraw.Draw(img)
     draw.text((x_offset, y_offset), ch, (0, 0, 0), font=font)
@@ -45,13 +57,31 @@ def draw_single_char(ch, font, canvas_size, x_offset, y_offset):
 
 
 def draw_example(ch, src_font, dst_font, canvas_size, x_offset, y_offset, filter_hashes):
+    """
+    source 폰트와 destination 폰트 글자 이미지를 나란히 생성한 후 combine 하여 학습을 위한 하나의 이미지 생성
+    :param ch: 생성할 글자
+    :param src_font: source 폰트 (zi2zi 네트워크 상에서 출발이 되는 폰트 이미지)
+    :param dst_font: destination 폰투 (zi2zi 네트워크 상에서 목표가 되는 폰트 이미지)
+    :param canvas_size: 생성할 이미지의 크기
+    :param x_offset: 그릴 글자의 x축 상의 위치
+    :param y_offset: 그릴 글자의 y축 상의 위치
+    :param filter_hashes:
+    :return: combine된 이미지
+    """
+
+    # destination 폰트 글자 이미지 생성
     dst_img = draw_single_char(ch, dst_font, canvas_size, x_offset, y_offset)
     # check the filter example in the hashes or not
+    # 이미지의 해시값을 구한 뒤 해시 리스트에 없는 경우 폰트상에 존재하지 않는 글자이므로
+    # 생성하지 않고 건너뜀
     dst_hash = hash(dst_img.tobytes())
     if dst_hash in filter_hashes:
         return None
+    # source 폰트 글자 이미지 생성
     src_img = draw_single_char(ch, src_font, canvas_size, x_offset, y_offset)
+    # 이미지 combine은 세로로 나란히 이루어지기 때문에 세로 길이가 두배인 이미지 생성
     example_img = Image.new("RGB", (canvas_size * 2, canvas_size), (255, 255, 255))
+    # 이미지 combine
     example_img.paste(dst_img, (0, 0))
     example_img.paste(src_img, (canvas_size, 0))
     return example_img
@@ -61,14 +91,25 @@ def filter_recurring_hash(charset, font, canvas_size, x_offset, y_offset):
     """
     Some characters are missing in a given font, filter them by checking the recurring hashes
     주어진 글꼴에 일부 문자가 없으면 반복되는 해시를 검사하여 해당 문자를 필터링
+    :param charset: 지정한 언어의 글자셋
+    :param font: 문자 존재 여부 확인할 폰트
+    :param canvas_size: 이미지 크기
+    :param x_offset: 그릴 글자의 x축 상의 위치
+    :param y_offset: 그릴 글자의 y축 상이 위치
+    :return:
     """
+
+    # 함수 내부에서 사용할 글자셋 생성(복사->셔플->2000개만 추출)
     _charset = charset[:]
     np.random.shuffle(_charset)
     sample = _charset[:2000]
+    # 디폴트 값이 int인 딕셔너리(지정하지 않은 키는 그 값이 0으로 지정됨) hash_count 생성
     hash_count = collections.defaultdict(int)
+    # 샘플 글자셋에서 글자 하나씩 이미지 생성하여 해시 만든 후 만들어진 해시를 딕셔너리에 카운트
     for c in sample:
         img = draw_single_char(c, font, canvas_size, x_offset, y_offset)
         hash_count[hash(img.tobytes())] += 1
+    # 딕셔너리 아이템 중에서 카운트 횟수가 2보다 큰 경우를 뽑아내어 해시 리스트를 만듦
     recurring_hashes = filter(lambda d: d[1] > 2, hash_count.items())
     return [rh[0] for rh in recurring_hashes]
 
@@ -82,7 +123,7 @@ def font2img(src, dst, charset, char_size, canvas_size,
 
     # filter 옵션이 true라면,
     # 주어진 폰트에 일부 문자가 반복되지 않는지 해시를 검사하여 필터링하여,
-    # 이미지로 만들 글자 해시 셋을 구함
+    # 글자 해시 리스트를 생성함
     # (폰트 상에서 지원하지 않는 글자를 걸러내기 위함)
     filter_hashes = set()
     if filter_by_hash:
