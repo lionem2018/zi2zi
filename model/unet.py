@@ -12,6 +12,7 @@ from collections import namedtuple
 from .ops import conv2d, deconv2d, lrelu, fc, batch_norm, init_embedding, conditional_instance_norm
 from .dataset import TrainDataProvider, InjectDataProvider, NeverEndingLoopingProvider
 from .utils import scale_back, merge, save_concat_images
+import matplotlib.pyplot as plt
 
 # Auxiliary wrapper classes
 # 보조 래퍼 클래스
@@ -202,8 +203,8 @@ class UNet(object):
         """
         이미지의 스타일을 변환하여 생성하는 generator (UNet 사용)
         :param images: 변환할 이미지
-        :param embeddings: 
-        :param embedding_ids: 
+        :param embeddings: 모든 카테고리 임베딩 값
+        :param embedding_ids: 카테고리 임베딩 값을 얻을 스타일의 인덱스 번호
         :param inst_norm: 
         :param is_training: 학습 상황인지 테스트 상황인지
         :param reuse: 재사용 여부
@@ -241,13 +242,23 @@ class UNet(object):
             h3 = lrelu(batch_norm(conv2d(h2, self.discriminator_dim * 8, sh=1, sw=1, scope="d_h3_conv"),
                                   is_training, scope="d_bn_3"))
             # real or fake binary loss
+            # 실제인지 가짜인지 판단
             fc1 = fc(tf.reshape(h3, [self.batch_size, -1]), 1, scope="d_fc1")
             # category loss
+            # 어떤 카테고리의 스타일일지 판단
             fc2 = fc(tf.reshape(h3, [self.batch_size, -1]), self.embedding_num, scope="d_fc2")
 
             return tf.nn.sigmoid(fc1), fc1, fc2
 
     def build_model(self, is_training=True, inst_norm=False, no_target_source=False):
+        """
+        학습을 위한 전체적인 모델 구성
+        :param is_training: 학습 상황인지 테스트 상황인지
+        :param inst_norm: 조건부 인스턴스 정규화 사용 여부
+        :param no_target_source: ???
+        :return: ???
+        """
+        # real data를 위한 placeholder와 no target data를 위한 placeholder 생성
         real_data = tf.placeholder(tf.float32,
                                    [self.batch_size, self.input_width, self.input_width,
                                     self.input_filters + self.output_filters],
@@ -259,29 +270,39 @@ class UNet(object):
                                         name='no_target_A_and_B_images')
         no_target_ids = tf.placeholder(tf.int64, shape=None, name="no_target_embedding_ids")
 
+        # 학습을 위해 combine 되어 있던 real_data를 타겟과 소스로 나눔
         # target images
+        # 타겟 이미지 데이터
         real_B = real_data[:, :, :, :self.input_filters]
         # source images
+        # 소스 이미지 데이터
         real_A = real_data[:, :, :, self.input_filters:self.input_filters + self.output_filters]
 
         embedding = init_embedding(self.embedding_num, self.embedding_dim)
+        # generator를 통해 타겟과 유사하도록 하는 fake 이미지, generator의 encoder 부분만을 거친 encoded 이미지를 구함
         fake_B, encoded_real_A = self.generator(real_A, embedding, embedding_ids, is_training=is_training,
                                                 inst_norm=inst_norm)
+        # discriminator에 입력하기 위해 source와 target, 그리고 source와 fake를 concat
         real_AB = tf.concat([real_A, real_B], 3)
         fake_AB = tf.concat([real_A, fake_B], 3)
 
         # Note it is not possible to set reuse flag back to False
         # initialize all variables before setting reuse to True
+        # 재사용 플래그를 다시 False로 설정할 수는 없습니다.
+        # 재사용을 True로 설정하기 전에 모든 변수를 초기화하십시오.
         real_D, real_D_logits, real_category_logits = self.discriminator(real_AB, is_training=is_training, reuse=False)
         fake_D, fake_D_logits, fake_category_logits = self.discriminator(fake_AB, is_training=is_training, reuse=True)
 
         # encoding constant loss
         # this loss assume that generated imaged and real image
         # should reside in the same space and close to each other
+        # 상수 손실 인코딩
+        # 이 손실은 생성 된 이미지와 실제 이미지가 같은 공간에 있고 서로 가깝다고 가정합니다
         encoded_fake_B = self.encoder(fake_B, is_training, reuse=True)[0]
         const_loss = (tf.reduce_mean(tf.square(encoded_real_A - encoded_fake_B))) * self.Lconst_penalty
 
         # category loss
+        # 카테고리 손실
         true_labels = tf.reshape(tf.one_hot(indices=embedding_ids, depth=self.embedding_num),
                                  shape=[self.batch_size, self.embedding_num])
         real_category_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_category_logits,
@@ -291,13 +312,17 @@ class UNet(object):
         category_loss = self.Lcategory_penalty * (real_category_loss + fake_category_loss)
 
         # binary real/fake loss
+        # 실제 혹은 거짓 판별 loss
         d_loss_real = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=real_D_logits,
                                                                              labels=tf.ones_like(real_D)))
         d_loss_fake = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=fake_D_logits,
                                                                              labels=tf.zeros_like(fake_D)))
         # L1 loss between real and generated images
+        # 실제 이미지와 생성된 이미지 간의 L1 loss
+        # 순수한 차이
         l1_loss = self.L1_penalty * tf.reduce_mean(tf.abs(fake_B - real_B))
         # total variation loss
+        # 변동 loss
         width = self.output_width
         tv_loss = (tf.nn.l2_loss(fake_B[:, 1:, :, :] - fake_B[:, :width - 1, :, :]) / width
                    + tf.nn.l2_loss(fake_B[:, :, 1:, :] - fake_B[:, :, :width - 1, :]) / width) * self.Ltv_penalty
@@ -314,6 +339,10 @@ class UNet(object):
             # however, except L1 loss, we can compute category loss, binary loss and constant losses with those examples
             # it is useful when discriminator get saturated and d_loss drops to near zero
             # those data could be used as additional source of losses to break the saturation
+            # no_target 소스는 해당 대상 이미지가없는 예제입니다.
+            # 그러나 L1 손실을 제외하고는 범주 손실, 이진 손실 및 그러한 손실을 계산할 수 있습니다
+            # discriminator가 포화되고 d_loss가 거의 0에 가까울 때 유용합니다.
+            # 이러한 데이터는 포화 상태를 깨뜨리는 추가적인 손실 원으로 사용될 수 있습니다.
             no_target_A = no_target_data[:, :, :, self.input_filters:self.input_filters + self.output_filters]
             no_target_B, encoded_no_target_A = self.generator(no_target_A, embedding, no_target_ids,
                                                               is_training=is_training,
@@ -360,6 +389,7 @@ class UNet(object):
                                              g_loss_summary, tv_loss_summary])
 
         # expose useful nodes in the graph as handles globally
+        # 그래프의 유용한 노드를 핸들로 전역 노출
         input_handle = InputHandle(real_data=real_data,
                                    embedding_ids=embedding_ids,
                                    no_target_data=no_target_data,
@@ -384,6 +414,7 @@ class UNet(object):
 
         # those operations will be shared, so we need
         # to make them visible globally
+        # 이러한 작업은 공유되므로 글로벌로 표시해야합니다.
         setattr(self, "input_handle", input_handle)
         setattr(self, "loss_handle", loss_handle)
         setattr(self, "eval_handle", eval_handle)
@@ -419,11 +450,18 @@ class UNet(object):
         return input_handle, loss_handle, eval_handle, summary_handle
 
     def get_model_id_and_dir(self):
+        """
+        학습 모델의 데이터를 저장하기 위한 디렉터리 및 아이디 생성
+        :return: 모델 아이디, 저장 디렉터리
+        """
         model_id = "experiment_%d_batch_%d" % (self.experiment_id, self.batch_size)
         model_dir = os.path.join(self.checkpoint_dir, model_id)
         return model_id, model_dir
 
     def checkpoint(self, saver, step):
+        """
+        학습 데이터 저장
+        """
         model_name = "unet.model"
         model_id, model_dir = self.get_model_id_and_dir()
 
@@ -433,6 +471,9 @@ class UNet(object):
         saver.save(self.sess, os.path.join(model_dir, model_name), global_step=step)
 
     def restore_model(self, saver, model_dir):
+        """
+        저장한 모델 데이터(체크포인트) 불러오기
+        """
 
         ckpt = tf.train.get_checkpoint_state(model_dir)
 
@@ -443,6 +484,12 @@ class UNet(object):
             print("fail to restore model %s" % model_dir)
 
     def generate_fake_samples(self, input_images, embedding_ids):
+        """
+        fake 이미지를 생성하는 함수
+        :param input_images: 입력이 되는 이미지
+        :param embedding_ids: 만들고자 하는 스타일에 대한 아이디
+        :return: 생성 이미지, 실제 이미지, d_loss, g_loss_ l1_loss
+        """
         input_handle, loss_handle, eval_handle, summary_handle = self.retrieve_handles()
         fake_images, real_images, \
         d_loss, g_loss, l1_loss = self.sess.run([eval_handle.generator,
@@ -459,12 +506,18 @@ class UNet(object):
         return fake_images, real_images, d_loss, g_loss, l1_loss
 
     def validate_model(self, val_iter, epoch, step):
+        """
+        모델 성능 검증
+        이미지를 생성하여 real과 fake를 나란히 둔 이미지 파일 생성
+        """
         labels, images = next(val_iter)
         fake_imgs, real_imgs, d_loss, g_loss, l1_loss = self.generate_fake_samples(images, labels)
         print("Sample: d_loss: %.5f, g_loss: %.5f, l1_loss: %.5f" % (d_loss, g_loss, l1_loss))
 
+        # batch_size 만큼의 이미지들을 세로로 배열하여 하나의 긴 이미지로 생성
         merged_fake_images = merge(scale_back(fake_imgs), [self.batch_size, 1])
         merged_real_images = merge(scale_back(real_imgs), [self.batch_size, 1])
+        # fake image와 real image를 합침
         merged_pair = np.concatenate([merged_real_images, merged_fake_images], axis=1)
 
         model_id, _ = self.get_model_id_and_dir()
@@ -478,6 +531,9 @@ class UNet(object):
         imageio.imsave(sample_img_path, merged_pair)
 
     def export_generator(self, save_dir, model_dir, model_name="gen_model"):
+        """
+        체크포인트에서 저장한 generator 불러오기기
+        """
         saver = tf.train.Saver()
         self.restore_model(saver, model_dir)
 
@@ -485,6 +541,9 @@ class UNet(object):
         gen_saver.save(self.sess, os.path.join(save_dir, model_name), global_step=0)
 
     def infer(self, source_obj, embedding_ids, model_dir, save_dir):
+        """
+        모델 테스트(추론)
+        """
         source_provider = InjectDataProvider(source_obj)
 
         if isinstance(embedding_ids, int) or len(embedding_ids) == 1:
@@ -517,6 +576,10 @@ class UNet(object):
             save_imgs(batch_buffer, count)
 
     def interpolate(self, source_obj, between, model_dir, save_dir, steps):
+        """
+        보간
+        소스 이미지에서 타겟 이미지로 fake 이미지가 변화되는 과정을 리스트로 저장
+        """
         tf.global_variables_initializer().run()
         saver = tf.train.Saver(var_list=self.retrieve_generator_vars())
         self.restore_model(saver, model_dir)
@@ -607,14 +670,16 @@ class UNet(object):
         no_target_ids = input_handle.no_target_ids
 
         # filter by one type of labels
-        data_provider = TrainDataProvider(self.data_dir, filter_by=fine_tune)
-        total_batches = data_provider.compute_total_batch_num(self.batch_size)
-        val_batch_iter = data_provider.get_val_iter(self.batch_size)
+        # 한 가지 유형의 라벨로 필터링
+        data_provider = TrainDataProvider(self.data_dir, filter_by=fine_tune)  # tf.dataset의 역할
+        total_batches = data_provider.compute_total_batch_num(self.batch_size)  # 몇 개의 batch가 존재하는지 계산
+        val_batch_iter = data_provider.get_val_iter(self.batch_size)  # validation을 위한 iterator(영원히 실행)
 
         saver = tf.train.Saver(max_to_keep=3)
         summary_writer = tf.summary.FileWriter(self.log_dir, self.sess.graph)
 
         if resume:
+            # 이전에 저장한 모델 정보를 가져옴
             _, model_dir = self.get_model_id_and_dir()
             self.restore_model(saver, model_dir)
 
@@ -623,11 +688,14 @@ class UNet(object):
         start_time = time.time()
 
         for ei in range(epoch):
+            # training data 얻음
             train_batch_iter = data_provider.get_train_iter(self.batch_size)
 
+            # schedule 횟수만큼 돌 때마다 learning rate 줄여나감(slash)
             if (ei + 1) % schedule == 0:
                 update_lr = current_lr / 2.0
                 # minimum learning rate guarantee
+                # 단, 0.0002보다는 낮아지지 않도록
                 update_lr = max(update_lr, 0.0002)
                 print("decay learning rate from %.5f to %.5f" % (current_lr, update_lr))
                 current_lr = update_lr
@@ -639,6 +707,7 @@ class UNet(object):
                 if flip_labels:
                     np.random.shuffle(shuffled_ids)
                 # Optimize D
+                # Discriminator 최적화
                 _, batch_d_loss, d_summary = self.sess.run([d_optimizer, loss_handle.d_loss,
                                                             summary_handle.d_merged],
                                                            feed_dict={
@@ -649,6 +718,7 @@ class UNet(object):
                                                                no_target_ids: shuffled_ids
                                                            })
                 # Optimize G
+                # Generator 최적화
                 _, batch_g_loss = self.sess.run([g_optimizer, loss_handle.g_loss],
                                                 feed_dict={
                                                     real_data: batch_images,
