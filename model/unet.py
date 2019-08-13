@@ -565,6 +565,8 @@ class UNet(object):
         batch_buffer = list()
         for labels, source_imgs in source_iter:
             fake_imgs = self.generate_fake_samples(source_imgs, labels)[0]
+            for i in range(len(fake_imgs)):
+                imageio.imsave(os.path.join(save_dir, "test_%04d_%04d.png" % (count, i)), fake_imgs[i])
             merged_fake_images = merge(scale_back(fake_imgs), [self.batch_size, 1])
             batch_buffer.append(merged_fake_images)
             if len(batch_buffer) == 10:
