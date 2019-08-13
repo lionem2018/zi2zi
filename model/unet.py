@@ -567,11 +567,7 @@ class UNet(object):
             fake_imgs = self.generate_fake_samples(source_imgs, labels)[0]
 
             for i in range(len(fake_imgs)):
-                temp_list = list()
-                source_img = source_imgs[i].astype(np.float32)
-                temp_list.append(source_img)
-                temp_list.append(fake_imgs[i])
-                combined_img = merge(scale_back(temp_list), [1, 2])
+                combined_img = np.concatenate([source_imgs[i], fake_imgs[i]])
                 imageio.imsave(os.path.join(save_dir, "test/test_%04d_%04d.png" % (count, i)), combined_img)
 
             merged_fake_images = merge(scale_back(fake_imgs), [self.batch_size, 1])
