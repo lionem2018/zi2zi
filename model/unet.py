@@ -570,7 +570,7 @@ class UNet(object):
                 temp_list = list()
                 temp_list.append(source_imgs[i])
                 temp_list.append(fake_imgs[i])
-                combined_img = merge(scale_back(temp_list), [2, 1])
+                combined_img = merge(scale_back(temp_list), [1, 2])
                 imageio.imsave(os.path.join(save_dir, "test/test_%04d_%04d.png" % (count, i)), combined_img)
 
             merged_fake_images = merge(scale_back(fake_imgs), [self.batch_size, 1])
