@@ -568,7 +568,7 @@ class UNet(object):
 
             for i in range(len(fake_imgs)):
                 print(source_imgs.shape, fake_imgs.shape)
-                combined_img = np.concatenate([source_imgs[i], fake_imgs[i]])
+                combined_img = np.concatenate([source_imgs[i][:][:][3:5], fake_imgs[i]])
                 imageio.imsave(os.path.join(save_dir, "test/test_%04d_%04d.png" % (count, i)), combined_img)
 
             merged_fake_images = merge(scale_back(fake_imgs), [self.batch_size, 1])
