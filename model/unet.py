@@ -567,7 +567,7 @@ class UNet(object):
             fake_imgs = self.generate_fake_samples(source_imgs, labels)[0]
 
             for i in range(len(fake_imgs)):
-                print(type(source_imgs), type(fake_imgs))
+                print(source_imgs, fake_imgs)
                 combined_img = np.concatenate([source_imgs[i], fake_imgs[i]])
                 imageio.imsave(os.path.join(save_dir, "test/test_%04d_%04d.png" % (count, i)), combined_img)
 
