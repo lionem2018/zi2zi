@@ -50,9 +50,9 @@ def draw_single_char(ch, font, canvas_size, x_offset, y_offset):
     :return: 글자가 그려진 이미지
     """
 
-    img = Image.new("RGB", (canvas_size, canvas_size), (255, 255, 255))
+    img = Image.new("RGB", (canvas_size, canvas_size), (0, 0, 0))
     draw = ImageDraw.Draw(img)
-    draw.text((x_offset, y_offset), ch, (0, 0, 0), font=font)
+    draw.text((x_offset, y_offset), ch, (255, 255, 255), font=font)
     return img
 
 
