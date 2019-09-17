@@ -174,8 +174,7 @@ if __name__ == "__main__":
         # charset = [c for c in open(args.charset).readline()[:-1].decode("utf-8")]
         with io.open(args.charset, 'r', encoding='utf-8-sig') as f:
             charset = f.read().splitlines()
-            print(charset)
-
+            
     # 셔플 옵션이 true 인 경우, 글자 셋을 셔플하여 랜덤으로 글자 이미지를 생성할 수 있도록 함
     if args.shuffle:
         np.random.shuffle(charset)
