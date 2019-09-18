@@ -761,9 +761,10 @@ class UNet(object):
                 summary_writer.add_summary(d_summary, counter)
                 summary_writer.add_summary(g_summary, counter)
 
-                if counter % sample_steps == 0 and sample_steps != 0:
-                    # sample the current model states with val data
-                    self.validate_model(val_batch_iter, ei, counter)
+                if sample_steps != 0:
+                    if counter % sample_steps == 0:
+                        # sample the current model states with val data
+                        self.validate_model(val_batch_iter, ei, counter)
 
                 if counter % checkpoint_steps == 0:
                     print("Checkpoint: save checkpoint step %d" % counter)
