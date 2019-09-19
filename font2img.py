@@ -57,7 +57,7 @@ def draw_single_char(ch, font, canvas_size, x_offset, y_offset):
     return img
 
 
-def draw_example(ch, src_font, dst_font, canvas_size, x_offset, y_offset, filter_hashes):
+def draw_example(ch, src_font, dst_font, canvas_size, x_offset, y_offset, filter_hashes, sample_dir, count):
     """
     source 폰트와 destination 폰트 글자 이미지를 나란히 생성한 후 combine 하여 학습을 위한 하나의 이미지 생성
     :param ch: 생성할 글자
@@ -82,6 +82,9 @@ def draw_example(ch, src_font, dst_font, canvas_size, x_offset, y_offset, filter
     src_img = draw_single_char(ch, src_font, canvas_size, x_offset, y_offset)
     # 이미지 combine은 세로로 나란히 이루어지기 때문에 세로 길이가 두배인 이미지 생성
     example_img = Image.new("RGB", (canvas_size * 2, canvas_size), (255, 255, 255))
+
+    dst_img.save((os.path.join(sample_dir, "target/%d_target.png" % count)))
+    src_img.save((os.path.join(sample_dir, "input/%d_input.png" % count)))
     # 이미지 combine
     example_img.paste(dst_img, (0, 0))
     example_img.paste(src_img, (canvas_size, 0))
@@ -139,7 +142,7 @@ def font2img(src, dst, charset, char_size, canvas_size,
         if count == sample_count:
             break
         # 
-        e = draw_example(c, src_font, dst_font, canvas_size, x_offset, y_offset, filter_hashes)
+        e = draw_example(c, src_font, dst_font, canvas_size, x_offset, y_offset, filter_hashes, sample_dir, count)
         if e:
             # 생성한 폰트 글자 이미지를 jpg 파일로 저장
             e.save(os.path.join(sample_dir, "%d_%04d.jpg" % (label, count)))

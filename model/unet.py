@@ -573,7 +573,7 @@ class UNet(object):
 
             # 한 글자씩 pair 하게 저장하기 위한 코드
             for i in range(len(fake_imgs)):
-                imageio.imsave(os.path.join(save_dir, "characters/%04d.png" % count), fake_imgs[i])
+                imageio.imsave(os.path.join(save_dir, "characters/%d_output.png" % count), fake_imgs[i])
                 count += 1
 
             merged_fake_images = merge(scale_back(fake_imgs), [self.batch_size, 1])
