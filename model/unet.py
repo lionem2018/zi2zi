@@ -556,6 +556,10 @@ class UNet(object):
         saver = tf.train.Saver(var_list=self.retrieve_generator_vars())
         self.restore_model(saver, model_dir)
 
+        if not os.path.exists(os.path.join(save_dir, "characters")):
+            os.makedirs(os.path.join(save_dir, "characters"))
+            print("create save characters directory")
+
         def save_imgs(imgs, count):
             p = os.path.join(save_dir, "inferred_%04d.png" % count)
             save_concat_images(imgs, img_path=p)
