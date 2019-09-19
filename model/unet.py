@@ -563,21 +563,21 @@ class UNet(object):
 
         count = 0
         batch_buffer = list()
+
         for labels, source_imgs in source_iter:
             fake_imgs = self.generate_fake_samples(source_imgs, labels)[0]
 
             # 한 글자씩 pair 하게 저장하기 위한 코드
-            # for i in range(len(fake_imgs)):
-            #     source_img = source_imgs[i, :, :, 3:6]
-            #     combined_img = np.concatenate([source_img, fake_imgs[i]], axis=1)  # source_image의 뒷 이미지만 가져와서 concat하기 (source는 두 이미지가 합쳐진 상태)
-            #     imageio.imsave(os.path.join(save_dir, "test/test_%04d_%04d.png" % (count, i)), combined_img)
+            for i in range(len(fake_imgs)):
+                imageio.imsave(os.path.join(save_dir, "characters/%04d.png" % count), fake_imgs[i])
+                count += 1
 
             merged_fake_images = merge(scale_back(fake_imgs), [self.batch_size, 1])
             batch_buffer.append(merged_fake_images)
             if len(batch_buffer) == 10:
                 save_imgs(batch_buffer, count)
                 batch_buffer = list()
-            count += 1
+
         if batch_buffer:
             # last batch
             save_imgs(batch_buffer, count)
