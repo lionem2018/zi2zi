@@ -83,8 +83,8 @@ def draw_example(ch, src_font, dst_font, canvas_size, x_offset, y_offset, filter
     # 이미지 combine은 세로로 나란히 이루어지기 때문에 세로 길이가 두배인 이미지 생성
     example_img = Image.new("RGB", (canvas_size * 2, canvas_size), (255, 255, 255))
 
-    dst_img.save((os.path.join(sample_dir, "target/%d_target.png" % count)))
-    src_img.save((os.path.join(sample_dir, "input/%d_input.png" % count)))
+    dst_img.save((os.path.join(sample_dir, "target/%d-targets.png" % count)))
+    src_img.save((os.path.join(sample_dir, "input/%d-inputs.png" % count)))
     # 이미지 combine
     example_img.paste(dst_img, (0, 0))
     example_img.paste(src_img, (canvas_size, 0))
@@ -162,8 +162,8 @@ parser.add_argument('--charset', dest='charset', type=str, default='CN',
 parser.add_argument('--shuffle', dest='shuffle', type=int, default=0, help='shuffle a charset before processings')
 parser.add_argument('--char_size', dest='char_size', type=int, default=150, help='character size')
 parser.add_argument('--canvas_size', dest='canvas_size', type=int, default=256, help='canvas size')
-parser.add_argument('--x_offset', dest='x_offset', type=int, default=20, help='x offset')
-parser.add_argument('--y_offset', dest='y_offset', type=int, default=20, help='y_offset')
+parser.add_argument('--x_offset', dest='x_offset', type=int, default=53, help='x offset')
+parser.add_argument('--y_offset', dest='y_offset', type=int, default=53, help='y_offset')
 parser.add_argument('--sample_count', dest='sample_count', type=int, default=1000, help='number of characters to draw')
 parser.add_argument('--sample_dir', dest='sample_dir', help='directory to save examples')
 parser.add_argument('--label', dest='label', type=int, default=0, help='label as the prefix of examples')
