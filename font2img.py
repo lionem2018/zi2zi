@@ -134,7 +134,7 @@ def font2img(src, dst, charset, char_size, canvas_size,
         filter_hashes = set(filter_recurring_hash(charset, dst_font, canvas_size, x_offset, y_offset))
         print("filter hashes -> %s" % (",".join([str(h) for h in filter_hashes])))
 
-    count = 0
+    count = 1
 
     # 각 글자에 대한 폰트 이미지 생성
     for c in charset:
