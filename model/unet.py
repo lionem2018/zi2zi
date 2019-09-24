@@ -565,7 +565,7 @@ class UNet(object):
             save_concat_images(imgs, img_path=p)
             print("generated images saved at %s" % p)
 
-        count = 0
+        count = 1
         batch_buffer = list()
 
         for labels, source_imgs in source_iter:
